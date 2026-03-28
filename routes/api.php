@@ -26,11 +26,12 @@ Route::post('/nodes/register', [NodeController::class, 'register']);
 Route::get('/nodes/resolve', [NodeController::class, 'resolve']);
 
 // Transacciones
-Route::post('/transactions/new', [TransactionController::class, 'store']);
+Route::post('/transactions', [TransactionController::class, 'store']);
+Route::get('/transactions', [TransactionController::class, 'pending']);
 Route::get('/transactions/pending', [TransactionController::class, 'pending']);
 
 // Minería (Proof of Work)
-Route::get('/mine', [MineController::class, 'mine']);
+Route::post('/mine', [MineController::class, 'mine']);
 
 // Propagación de Bloques
 Route::post('/blocks/receive', [BlockController::class, 'receive']);

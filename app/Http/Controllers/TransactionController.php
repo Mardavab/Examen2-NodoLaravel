@@ -7,7 +7,7 @@ use Illuminate\Http\JsonResponse;
 
 class TransactionController extends Controller
 {
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, \App\Services\BlockchainService $service): JsonResponse
     {
         $validated = $request->validate([
             'persona_id' => 'required|uuid',
@@ -24,8 +24,12 @@ class TransactionController extends Controller
 
         $transaccion = TransaccionPendiente::create($validated);
 
+        // Propagate the transaction to peers as per Phase 3 requirement
+        // We pass the validated data to avoid recursion if the receiver also propagates (logic should handle it)
+        $service->propagateTransaction($validated);
+
         return response()->json([
-            'message' => 'Transaction added for next block.',
+            'message' => 'Transaction added and propagated.',
             'transaction' => $transaccion
         ], 201);
     }

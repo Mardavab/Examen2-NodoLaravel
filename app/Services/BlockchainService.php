@@ -15,18 +15,14 @@ class BlockchainService
 
     /**
      * Calculate the SHA-256 hash of a block (Grado)
+     * Requirement: Uses exactly 6 fields in the correct order.
      */
     public function calculateHash(Grado $grado, int $nonce): string
     {
         $data = $grado->persona_id .
                 $grado->institucion_id .
                 $grado->programa_id .
-                $grado->fecha_inicio .
-                $grado->fecha_fin .
                 $grado->titulo_obtenido .
-                $grado->numero_cedula .
-                $grado->titulo_tesis .
-                $grado->menciones .
                 $grado->hash_anterior .
                 $nonce;
 
@@ -114,7 +110,6 @@ class BlockchainService
         foreach ($nodes as $node) {
             try {
                 $response = Http::timeout(5)->post("{$node->url}/api/blocks/receive", [
-                    // Se envía el bloque completo serializado
                     'block' => $grado->toArray()
                 ]);
                 $results[$node->url] = $response->status();
@@ -128,25 +123,47 @@ class BlockchainService
     }
 
     /**
+     * Propagate a transaction to all known active nodes
+     */
+    public function propagateTransaction(array $transactionData): array
+    {
+        $nodes = Nodo::where('activo', true)->get();
+        $results = [];
+
+        foreach ($nodes as $node) {
+            try {
+                // We send to /api/transactions as per requirement
+                $response = Http::timeout(2)->post("{$node->url}/api/transactions", $transactionData);
+                $results[$node->url] = $response->status();
+            } catch (\Exception $e) {
+                Log::warning("Failed to propagate transaction to node: {$node->url}. Error: " . $e->getMessage());
+                $results[$node->url] = 'Failed';
+            }
+        }
+
+        return $results;
+    }
+
+    /**
      * Consensus Algorithm: Longest Valid Chain Rule
      */
-    public function resolveConflicts(): bool
+    public function resolveConflicts(): array
     {
         $neighbors = Nodo::where('activo', true)->get();
         $newChain = null;
         $maxLength = Grado::count();
+        $peersConsultados = [];
 
         foreach ($neighbors as $node) {
+            $peersConsultados[] = $node->url;
             try {
                 $response = Http::timeout(5)->get("{$node->url}/api/chain");
 
                 if ($response->successful()) {
                     $length = $response->json('length');
-                    $chainData = $response->json('chain'); // Array of block arrays
+                    $chainData = $response->json('chain');
 
-                    // Check if chain length is strictly greater
                     if ($length > $maxLength) {
-                        // Validate format first to ensure we can build the chain
                         if (is_array($chainData) && $this->isChainValidFromData($chainData)) {
                             $maxLength = $length;
                             $newChain = $chainData;
@@ -158,10 +175,11 @@ class BlockchainService
             }
         }
 
+        $replaced = false;
         if ($newChain) {
             DB::transaction(function () use ($newChain) {
                 Schema::disableForeignKeyConstraints();
-                Grado::query()->delete(); // clear current blocks
+                Grado::query()->delete();
                 
                 foreach ($newChain as $blockData) {
                     $grado = new Grado();
@@ -170,10 +188,13 @@ class BlockchainService
                 }
                 Schema::enableForeignKeyConstraints();
             });
-            return true;
+            $replaced = true;
         }
 
-        return false;
+        return [
+            'replaced' => $replaced,
+            'peers_consultados' => $peersConsultados
+        ];
     }
 
     /**
