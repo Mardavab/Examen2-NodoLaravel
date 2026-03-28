@@ -104,7 +104,7 @@ class BlockchainService
      */
     public function propagateBlock(Grado $grado): array
     {
-        $nodes = Nodo::where('activo', true)->get();
+        $nodes = Nodo::all();
         $results = [];
 
         foreach ($nodes as $node) {
@@ -127,7 +127,7 @@ class BlockchainService
      */
     public function propagateTransaction(array $transactionData): array
     {
-        $nodes = Nodo::where('activo', true)->get();
+        $nodes = Nodo::all();
         $results = [];
 
         foreach ($nodes as $node) {
@@ -149,7 +149,7 @@ class BlockchainService
      */
     public function resolveConflicts(): array
     {
-        $neighbors = Nodo::where('activo', true)->get();
+        $neighbors = Nodo::all();
         $newChain = null;
         $maxLength = Grado::count();
         $peersConsultados = [];

@@ -17,8 +17,7 @@ class NodeController extends Controller
         $url = rtrim($validated['node_url'], '/');
 
         Nodo::firstOrCreate([
-            'url' => $url,
-            'activo' => true
+            'url' => $url
         ]);
 
         return response()->json([
